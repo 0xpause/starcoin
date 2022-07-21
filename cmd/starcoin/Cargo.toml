@@ -55,6 +55,7 @@ starcoin-abi-decoder = {path = "../../abi/decoder"}
 starcoin-abi-resolver = {path = "../../abi/resolver"}
 starcoin-abi-types = {path = "../../abi/types"}
 move-command-line-common = {git = "https://github.com/starcoinorg/move", rev = "69db2858761045f19935f3aaf43f04a1910ae74d" }
+starcoin-cmd-fork = {path = "./fork"}
 
 [dev-dependencies]
 test-helper= {path = "../../test-helper"}

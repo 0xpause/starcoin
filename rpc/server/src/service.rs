@@ -152,6 +152,88 @@ impl RpcService {
         Self::new(config, api_registry)
     }
 
+    pub fn new_with_fork_node_api<C>(
+        config: Arc<NodeConfig>,
+        // node_api: N,
+        // node_manager_api: Option<NM>,
+        // sync_manager_api: Option<SM>,
+        // network_manager_api: Option<NWM>,
+        chain_api: Option<C>,
+        // txpool_api: Option<T>,
+        // account_api: Option<A>,
+        // state_api: Option<S>,
+        // pubsub_api: Option<P>,
+        // debug_api: Option<D>,
+        // miner_api: Option<M>,
+        // contract_api: Option<Contract>,
+    ) -> Self
+    where
+        // N: NodeApi,
+        // NM: NodeManagerApi,
+        // SM: SyncManagerApi,
+        // NWM: NetworkManagerApi,
+        C: ChainApi,
+        // T: TxPoolApi,
+        // A: AccountApi,
+        // S: StateApi,
+        // P: StarcoinPubSub<Metadata = Metadata>,
+        // D: DebugApi,
+        // M: MinerApi,
+        // Contract: ContractApi,
+    {
+        let metrics = config
+            .metrics
+            .registry()
+            .and_then(|registry| RpcMetrics::register(registry).ok());
+
+        let mut api_registry = ApiRegistry::new(config.rpc.api_quotas.clone(), metrics);
+
+        // api_registry.register(Api::Node, NodeApi::to_delegate(node_api));
+        // if let Some(node_manager_api) = node_manager_api {
+        //     api_registry.register(
+        //         Api::NodeManager,
+        //         NodeManagerApi::to_delegate(node_manager_api),
+        //     );
+        // }
+        // if let Some(sync_manager_api) = sync_manager_api {
+        //     api_registry.register(
+        //         Api::SyncManager,
+        //         SyncManagerApi::to_delegate(sync_manager_api),
+        //     )
+        // }
+        // if let Some(network_manager_api) = network_manager_api {
+        //     api_registry.register(
+        //         Api::NetworkManager,
+        //         NetworkManagerApi::to_delegate(network_manager_api),
+        //     )
+        // }
+        if let Some(chain_api) = chain_api {
+            api_registry.register(Api::Chain, ChainApi::to_delegate(chain_api));
+        }
+        // if let Some(txpool_api) = txpool_api {
+        //     api_registry.register(Api::TxPool, TxPoolApi::to_delegate(txpool_api));
+        // }
+        // if let Some(account_api) = account_api {
+        //     api_registry.register(Api::Account, AccountApi::to_delegate(account_api));
+        // }
+        // if let Some(state_api) = state_api {
+        //     api_registry.register(Api::State, StateApi::to_delegate(state_api));
+        // }
+        // if let Some(pubsub_api) = pubsub_api {
+        //     api_registry.register(Api::PubSub, StarcoinPubSub::to_delegate(pubsub_api));
+        // }
+        // if let Some(debug_api) = debug_api {
+        //     api_registry.register(Api::Debug, DebugApi::to_delegate(debug_api));
+        // }
+        // if let Some(miner_api) = miner_api {
+        //     api_registry.register(Api::Miner, MinerApi::to_delegate(miner_api));
+        // }
+        // if let Some(contract_api) = contract_api {
+        //     api_registry.register(Api::Contract, ContractApi::to_delegate(contract_api));
+        // }
+        Self::new(config, api_registry)
+    }
+
     fn start_ipc(&self) -> Result<Option<jsonrpc_ipc_server::Server>> {
         Ok(if self.config.rpc.ipc.disable {
             None

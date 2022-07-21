@@ -1,6 +1,7 @@
 // Copyright (c) The Starcoin Core Contributors
 // SPDX-License-Identifier: Apache-2.0
-use anyhow::Result;
+use starcoin_cmd_fork;
+use anyhow::{Result, bail};
 use scmd::error::CmdError;
 use scmd::CmdContext;
 use starcoin_account_provider::ProviderFactory;
@@ -25,65 +26,79 @@ fn run() -> Result<()> {
         Some(G_APP_VERSION.as_str()),
         |opt| -> Result<CliState> {
             info!("Starcoin opts: {}", opt);
-            let connect = opt.connect.as_ref().unwrap_or(&Connect::IPC(None));
-            let (client, node_handle) = match connect {
-                Connect::IPC(ipc_file) => {
-                    if let Some(ipc_file) = ipc_file {
-                        info!("Try to connect node by ipc: {:?}", ipc_file);
-                        let client = RpcClient::connect_ipc(ipc_file)?;
-                        (client, None)
-                    } else {
-                        info!("Start starcoin node...");
-                        // check and do some clean work
-                        let config = NodeConfig::load_with_opt(opt)
-                            .expect("load config with opt should success.");
-                        let ipc_file = config.rpc.get_ipc_file();
-                        if ipc_file.exists() {
-                            // check if ipc is connectable
-                            info!(
-                                "ipc_file: {:?} already exists, try to check if it's connectable",
-                                ipc_file
-                            );
-                            if RpcClient::connect_ipc(&ipc_file).is_err() {
-                                info!("ipc_file: {:?} is not usable, just to remove it.", ipc_file);
-                                _ = fs::remove_file(ipc_file);
-                            }
-                        }
-                        let (node_handle, config) = starcoin_node::run_node_by_opt(opt)?;
-                        match node_handle {
-                            //first cli use local connect.
-                            Some(node_handle) => {
-                                info!("Connect by in process channel");
-                                let rpc_service = node_handle.rpc_service()?;
-                                let client = RpcClient::connect_local(rpc_service)?;
-                                (client, Some(node_handle))
-                            }
-                            None => {
-                                let ipc_file = config.rpc.get_ipc_file();
-                                helper::wait_until_file_created(ipc_file.as_path())?;
+            if opt.connect.is_some() && opt.fork.is_some() {
+                bail!("Option `connect` and `fork` conflicts.");
+            }
+            let (client, node_handle) = if opt.fork.is_some() {
+                let address = opt.fork.as_ref().unwrap();
+                info!("Start dev node fork from remote by websocket: {:?}", address);
+                let (node_handle, config) = starcoin_cmd_fork::run_node_fork_remote(opt)?;
+                let rpc_service = node_handle.unwrap().rpc_service()?;
+                info!("Dev node started, connect RpcClient.");
+                let client = RpcClient::connect_local(rpc_service)?;
+                (client, None)
+            } else {
+                let connect = opt.connect.as_ref().unwrap_or(&Connect::IPC(None));
+                let (client, node_handle) = match connect {
+                    Connect::IPC(ipc_file) => {
+                        if let Some(ipc_file) = ipc_file {
+                            info!("Try to connect node by ipc: {:?}", ipc_file);
+                            let client = RpcClient::connect_ipc(ipc_file)?;
+                            (client, None)
+                        } else {
+                            info!("Start starcoin node...");
+                            // check and do some clean work
+                            let config = NodeConfig::load_with_opt(opt)
+                                .expect("load config with opt should success.");
+                            let ipc_file = config.rpc.get_ipc_file();
+                            if ipc_file.exists() {
+                                // check if ipc is connectable
                                 info!(
-                                    "Attach a new console by ipc: starcoin -c {} console",
-                                    ipc_file.to_str().expect("invalid ipc file path.")
+                                    "ipc_file: {:?} already exists, try to check if it's connectable",
+                                    ipc_file
                                 );
-                                if let Some(ws_address) = config.rpc.get_ws_address() {
-                                    info!(
-                                        "Attach a new console by rpc: starcoin -c {} console",
-                                        ws_address
-                                    );
+                                if RpcClient::connect_ipc(&ipc_file).is_err() {
+                                    info!("ipc_file: {:?} is not usable, just to remove it.", ipc_file);
+                                    _ = fs::remove_file(ipc_file);
                                 }
-                                info!("Starcoin node started.");
-                                info!("Try to connect node by ipc: {:?}", ipc_file);
-                                let client = RpcClient::connect_ipc(ipc_file)?;
-                                (client, None)
+                            }
+                            let (node_handle, config) = starcoin_node::run_node_by_opt(opt)?;
+                            match node_handle {
+                                //first cli use local connect.
+                                Some(node_handle) => {
+                                    info!("Connect by in process channel");
+                                    let rpc_service = node_handle.rpc_service()?;
+                                    let client = RpcClient::connect_local(rpc_service)?;
+                                    (client, Some(node_handle))
+                                }
+                                None => {
+                                    let ipc_file = config.rpc.get_ipc_file();
+                                    helper::wait_until_file_created(ipc_file.as_path())?;
+                                    info!(
+                                        "Attach a new console by ipc: starcoin -c {} console",
+                                        ipc_file.to_str().expect("invalid ipc file path.")
+                                    );
+                                    if let Some(ws_address) = config.rpc.get_ws_address() {
+                                        info!(
+                                            "Attach a new console by rpc: starcoin -c {} console",
+                                            ws_address
+                                        );
+                                    }
+                                    info!("Starcoin node started.");
+                                    info!("Try to connect node by ipc: {:?}", ipc_file);
+                                    let client = RpcClient::connect_ipc(ipc_file)?;
+                                    (client, None)
+                                }
                             }
                         }
                     }
-                }
-                Connect::WebSocket(address) => {
-                    info!("Try to connect node by websocket: {:?}", address);
-                    let client = RpcClient::connect_websocket(address)?;
-                    (client, None)
-                }
+                    Connect::WebSocket(address) => {
+                        info!("Try to connect node by websocket: {:?}", address);
+                        let client = RpcClient::connect_websocket(address)?;
+                        (client, None)
+                    }
+                };
+                (client, node_handle)
             };
 
             let node_info = client.node_info()?;

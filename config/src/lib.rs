@@ -182,6 +182,16 @@ pub struct StarcoinOpt {
     pub connect: Option<Connect>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
+    #[clap(long, short = 'f')]
+    /// Fork from remote RPC
+    pub fork: Option<String>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
+    #[clap(long)]
+    /// Block number to fork from
+    pub fork_number: Option<u64>,
+
+    #[serde(skip_serializing_if = "Option::is_none")]
     #[clap(long = "data-dir", short = 'd', parse(from_os_str))]
     /// Path to data dir, this dir is base dir, the final data_dir is base_dir/chain_network_name
     pub base_data_dir: Option<PathBuf>,
